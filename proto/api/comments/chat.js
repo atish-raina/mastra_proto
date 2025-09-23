@@ -1,5 +1,96 @@
 // Vercel API route for comments agent chat
-import { mastra } from '../../.mastra/output/index.mjs';
+import { Agent } from '@mastra/core/agent';
+import { openai } from '@ai-sdk/openai';
+import { Memory } from '@mastra/memory';
+import { LibSQLStore } from '@mastra/libsql';
+import { createTool } from '@mastra/core/tools';
+import { z } from 'zod';
+
+// Define the comment interface
+const CommentSchema = z.object({
+  postId: z.number(),
+  id: z.number(),
+  name: z.string(),
+  email: z.string(),
+  body: z.string(),
+});
+
+// Create the fetchComments tool
+const fetchComments = createTool({
+  id: 'fetch-comments',
+  description: 'Fetch comments from JSONPlaceholder API with optional filtering',
+  inputSchema: z.object({
+    id: z.number().optional().describe('Filter comments by specific comment ID'),
+    postId: z.number().optional().describe('Filter comments by post ID'),
+    email: z.string().optional().describe('Filter comments by email address'),
+    name: z.string().optional().describe('Filter comments by name'),
+    limit: z.number().optional().describe('Limit the number of results returned (applied client-side)'),
+  }),
+  outputSchema: z.array(CommentSchema),
+  execute: async ({ context }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (context.id !== undefined) {
+        queryParams.append('id', context.id.toString());
+      }
+      if (context.postId !== undefined) {
+        queryParams.append('postId', context.postId.toString());
+      }
+      if (context.email !== undefined) {
+        queryParams.append('email', context.email);
+      }
+      if (context.name !== undefined) {
+        queryParams.append('name', context.name);
+      }
+
+      const baseUrl = 'https://jsonplaceholder.typicode.com/comments';
+      const url = queryParams.toString() 
+        ? `${baseUrl}?${queryParams.toString()}`
+        : baseUrl;
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch comments: ${response.status} ${response.statusText}`);
+      }
+
+      const comments = await response.json();
+      const limitedComments = context.limit 
+        ? comments.slice(0, context.limit)
+        : comments;
+
+      return limitedComments;
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      throw new Error(`Failed to fetch comments: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+});
+
+// Create the comments agent
+const commentsAgent = new Agent({
+  name: 'comments-agent',
+  instructions: `
+    You are a helpful assistant that answers user questions about comments. 
+    Always call the fetchComments tool when relevant to provide accurate information.
+    
+    When responding to user queries:
+    - Use the fetchComments tool to retrieve comment data when needed
+    - Provide clear and helpful answers based on the comment data
+    - If asked about specific comments, posts, or users, use appropriate filters
+    - Be concise but informative in your responses
+    - If no comments are found matching the criteria, let the user know
+    - Always be polite and professional
+  `,
+  model: openai('gpt-4o-mini'),
+  tools: { fetchComments },
+  memory: new Memory({
+    storage: new LibSQLStore({
+      url: ':memory:',
+    }),
+  }),
+});
 
 export default async function handler(req, res) {
   // Set CORS headers
@@ -34,9 +125,6 @@ export default async function handler(req, res) {
     res.write('data: {"type": "connected"}\n\n');
 
     try {
-      // Get the comments agent from mastra
-      const commentsAgent = mastra.agents.commentsAgent;
-      
       // Stream the agent's response
       const stream = await commentsAgent.generateText({
         messages: messages.map(msg => ({
