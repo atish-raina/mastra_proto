@@ -1,0 +1,29 @@
+# Development files
+src/
+tsconfig.json
+.mastra/.build/
+.mastra/mastra.db*
+.mastra/bundler-config.mjs
+.mastra/telemetry-config.mjs
+
+# Test files
+test-*.ts
+*.test.ts
+*.spec.ts
+
+# Documentation
+README.md
+COMMENTS_AGENT_README.md
+
+# Environment files
+.env
+.env.local
+.env.development
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db

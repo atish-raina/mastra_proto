@@ -1,15 +1,16 @@
 {
   "name": "proto",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Mastra Comments Agent with JSONPlaceholder API integration",
+  "main": ".mastra/output/index.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "mastra dev",
     "build": "mastra build",
-    "start": "mastra start"
+    "start": "node --import=./.mastra/output/instrumentation.mjs .mastra/output/index.mjs",
+    "vercel-build": "mastra build"
   },
-  "keywords": [],
+  "keywords": ["mastra", "ai", "agent", "comments", "api"],
   "author": "",
   "license": "ISC",
   "type": "module",
